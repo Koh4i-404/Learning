@@ -1,0 +1,66 @@
+import requests
+from bs4 import BeautifulSoup
+import pandas as pd
+import sqlite3
+import numpy as np
+
+db_name = 'World_Economies.db'
+table_name = 'Countries_by_GDP'
+csv_path = 'Countries_by_GDP.csv'
+
+url = 'https://web.archive.org/web/20230902185326/https://en.wikipedia.org/wiki/List_of_countries_by_GDP_%28nominal%29'
+table_attribs = {'class': 'wikitable sortable static-row-numbers plainrowheaders srn-white-background'}
+
+
+def extract(url, table_attribs):
+    response = requests.get(url).text
+    soup = BeautifulSoup(response, 'html.parser')
+
+    table = soup.find('table', attrs=table_attribs)
+
+    data_list = []
+
+    rows = table.find_all('tr')
+
+    for row in rows:
+        cells = row.find_all('td')
+        headers = row.find_all('th')
+
+        if len(headers) > 1:
+            continue
+
+        if len(cells) > (2):
+            country = cells[0].get_text(strip=True)
+            imf_gdp = cells[2].get_text(strip=True)
+            data_list.append({'Country': country, 'GDP_USD_Billion': imf_gdp})
+
+    df = pd.DataFrame(data_list)
+    return df
+
+
+def transform(df):
+    df['GDP_USD_Billion'] = df['GDP_USD_Billion'].replace('—', np.nan)
+    df['GDP_USD_Billion'] = df['GDP_USD_Billion'].str.replace(',', '').astype(float)
+    df['GDP_USD_Billion'] = df['GDP_USD_Billion'] / 1000
+    df = df[df['GDP_USD_Billion'] >= 100]
+    return df
+
+
+def load_to_csv(df, csv_path):
+    df.to_csv(csv_path)
+
+def log_progress(message):
+    timestamp_format = '%Y-%h-%d-%H:%M:%S' # Year-Monthname-Day-Hour-Minute-Second
+    now = datetime.now() # get current timestamp
+    timestamp = now.strftime(timestamp_format)
+    with open(log_file,"a") as f:
+        f.write(timestamp + ',' + message + '\n')
+
+
+df = extract(url, table_attribs)
+
+df = (transform(df))
+
+
+
+print(df)
